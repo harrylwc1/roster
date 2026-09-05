@@ -90,9 +90,14 @@ jobs:
           curl -s "https://github.com/${{ github.actor }}.keys" >> ~/.ssh/authorized_keys
           chmod 600 ~/.ssh/authorized_keys 
                    
-          # 2. 直接從上一步的變數抓取（手動輸入這行，把原來的 grep 刪掉）
-          SSH_CMD="${{ steps.upterm_ssh.outputs.ssh-url }}" 
-                                                                 
+                                                                
+          # 2. 直接向系統背景查詢（請手動用鍵盤換成這兩行）
+          SSH_CMD=$(/usr/local/bin/upterm session current --format ssh-url 2>/dev/null || upterm session current --format ssh-url 2>/dev/null || echo "")
+          
+          if [ -z "$SSH_CMD" ]; then
+            SSH_CMD="未能及時抓到連線，請至 GitHub Actions 的 Live Log 內手動查看。"
+          fi
+ 
           # 3. 處理 Telegram MarkdownV2 特殊字元轉義
           SSH_CMD_ESC=$(echo "$SSH_CMD" | sed 's/_/\\_/g; s/\./\\./g; s/-/\\-/g')
           MSG="🚀 *GitHub Actions 偵錯連線已啟動* %0A%0A 📋 *連線指令：* %0A \`$SSH_CMD_ESC\`"
