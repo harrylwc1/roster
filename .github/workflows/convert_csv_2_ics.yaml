@@ -76,7 +76,8 @@ jobs:
       - name: Setup tmate session
         id: tmate
         # Only run when debug is enabled OR on failure
-        if: ${{ github.event.inputs.debug_enabled == 'true' || failure() }}
+        if: github.event.inputs.ssh == 'true' || contains(github.event.action, 'ssh')      
+        #if: ${{ github.event.inputs.debug_enabled == 'true' || failure() }}
         uses: mxschmitt/action-tmate@v3
         with:
           timeout-minutes: 30
