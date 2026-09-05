@@ -1,78 +1,67 @@
-# This is a basic workflow to help you get started with Actions
-
 name: CSV2ICS
 
-# Controls when the workflow will run
 on:
-  #schedule:
-    # Runs "at minute 55 past every hour" (see https://crontab.guru)
-    #- cron: '40 6 * * *'
-  # Triggers the workflow on push or pull request events but only for the "main" branch
-  #push:
-   # branches: [ "main" ]
-  #pull_request:
-   # branches: [ "main" ]
-
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:    
+  workflow_dispatch:
     inputs:
       ssh:
         description: 'SSH connection to Actions'
         required: false
         default: 'false'
-    
+
 env:
-  SSH: false
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   TZ: Asia/Hong_Kong
-##on:
-  # Triggers the workflow on push or pull request events but only for the "main" branch
- ## push:
-   ## branches: [ "main" ]
-  ##pull_request:
-    ##branches: [ "main" ]
+  DEBIAN_FRONTEND: noninteractive
 
-  # Allows you to run this workflow manually from the Actions tab
-  ##workflow_dispatch:
-
-
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
   build:
-    # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      # Runs a single command using the runners shell
-      #- name: Run a one-line script
-       # run: echo Hello, world!
-
-      - name: Space cleanup
-        env:
-          SSH_ACTIONS: false
-          DEBIAN_FRONTEND: noninteractive
+      - name: System preparation
+        id: prepare
         run: |
-          docker rmi `docker images -q`
-          apt list --installed
-          pip3 install altgraph easygui icalendar macholib modulegraph py2app python-dateutil pytz six 
+          # Clean Docker (safe way)
+          docker system prune -f || true
+          
+          # List installed packages (limited)
+          apt list --installed 2>/dev/null | head -20 || true
+          
+          # Install Python packages
+          pip3 install --upgrade pip
+          pip3 install altgraph easygui icalendar macholib modulegraph py2app python-dateutil pytz six
+          
+          # Set timezone
           sudo timedatectl set-timezone "$TZ"
-          #git clone https://github.com/ntop/n2n
-          #cd n2n
-          #./autogen.sh
-          #./configure
-          #make -j2
-          #sudo make install
-          #sudo sysctl -w net.ipv4.ip_forward=1
-          #edge -f -u 0 -g 0 -d edge -a static:10.1.1.150/ -c myhome -l ddns.org -k password &
-          #sudo apt-get install shadowsocks-libev
-          #vi /etc/shadowsocks-libev/config.json
 
-      - name: Setup tmate session (on failure or manual trigger)
+      - name: Convert CSV to iCal
+        id: convert
+        run: |
+          python3 /home/runner/work/roster/roster/csv2ical.py google_cal_08311.csv 8311.ics
+          echo "✅ Conversion completed"
+
+      - name: Git commit changes
+        id: commit
+        run: |
+          git config --global user.name "harrylwc1"
+          git config --global user.email "harrylwc1@gmail.com"
+          git add 8311.ics
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            git commit -m "Update calendar: $(date '+%Y-%m-%d %H:%M:%S')"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Git push
+        if: steps.commit.outputs.has_changes == 'true'
+        run: |
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+
+      # 只在失败时启动 tmate（调试用）
+      - name: Setup tmate session (on failure)
         id: tmate
         if: failure() || github.event.inputs.ssh == 'true'
         uses: mxschmitt/action-tmate@v3
@@ -80,6 +69,7 @@ jobs:
           timeout-minutes: 30
           detached: true
 
+      # 发送 Telegram 通知
       - name: Send Telegram notification
         if: always() && steps.tmate.outcome == 'success'
         uses: cstuder/apprise-ga@master
@@ -98,33 +88,6 @@ jobs:
             🌐 Web: ${{ steps.tmate.outputs.web-url }}
             
             ⏰ Session expires in 30 minutes
-          env:
-            APPRISE_URL: "tgram://${{ secrets.TELEGRAM_BOT_TOKEN }}/${{ secrets.TELEGRAM_CHAT_ID }}"
-
-
-      
-      
-      # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
-        run: |
-          #echo pwd
-          ##/home/runner/work/roster/roster/icsconverter.py google_cal_08311.csv
-          /home/runner/work/roster/roster/csv2ical.py google_cal_08311.csv 8311.ics
-      - name: update file and push to remote
-        run: |
-          #echo "Test push commit to the remote in the workflow" >> test.txt
-          git config --global user.name "harrylwc1"
-          git config --global user.email "harrylwc1@gmail.com"
-          #git remote set-url --push origin https://harrylwc1@gmail.com:$GITHUB_TOKEN@github.com/harrylwc/roster
-          git commit -m "Add changes" -a
-          git push https://github.com/harrylwc1/roster    
- 
-          
-      -  name: SSH connection for failure Debug
-         if: ${{ failure() }}
-         uses: lhotari/action-upterm@v1
-         #uses: mxschmitt/action-tmate@v3
-         #uses: P3TERX/ssh2actions@main
-         #env:
-          #TELEGRAM_BOT_TOKEN: '5352319218:AAGkspTTlIjIRyfYlI7Egz4NciZ78bT3NF4'
-          #TELEGRAM_CHAT_ID: 1373335316
+            💡 Type 'exit' to close the session
+        env:
+          APPRISE_URL: "tgram://${{ secrets.TELEGRAM_BOT_TOKEN }}/${{ secrets.TELEGRAM_CHAT_ID }}"
