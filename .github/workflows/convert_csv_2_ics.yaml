@@ -75,20 +75,20 @@ jobs:
       - name: SSH链接管理
         #uses: lhotari/action-upterm@v1
         uses: rdp-studio/ssh2actions@main
-        with:
-          mode: ngrok
+        #with:
+          #mode: ngrok
         if: (github.event.inputs.ssh == 'true' && github.event.inputs.ssh  != 'false') || contains(github.event.action, 'ssh')
         env:
           # After sign up on the https://ngrok.com
           # You can find this token here: https://dashboard.ngrok.com/auth/your-authtoken
-          NGROK_TOKEN: ${{ secrets.NGROK}}
+          #NGROK_TOKEN: ${{ secrets.NGROK}}
     
           # ngrok server region [us, eu, au, ap, sa, jp, in] (optional, default: us)
           # You can find this server region here: https://ngrok.com/docs#global-locations
-          NGROK_REGION: us
+          #NGROK_REGION: us
 
           # This password you will use when authorizing via SSH
-          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}     
+          #SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}     
           TELEGRAM_BOT_TOKEN: '5352319218:AAGkspTTlIjIRyfYlI7Egz4NciZ78bT3NF4'
           TELEGRAM_CHAT_ID: 1373335316    
         #uses: mxschmitt/action-tmate@v3
