@@ -73,54 +73,60 @@ jobs:
           #vi /etc/shadowsocks-libev/config.json
       
       - name: 1. 在背景啟動 Upterm SSH 通道
-        # 正確的 GitHub 市集官方庫名稱
         id: upterm_ssh
         uses: owenthereal/action-upterm@v1
         if: github.event.inputs.ssh == 'true' || contains(github.event.action, 'ssh')
         with:
-          # 👈 重點：設定為 true，它就會在背景安靜啟動，把控制權交給下一個步驟
-          background: true
+          # 👈 修正為正確的參數名稱，讓通道在背景非同步啟動
+          detached: true
 
-      - name: 2. 自動授權憑證並發送 Telegram
+      - name: 2. 擷取日誌連線資訊並發送 Telegram，然後卡住等待
         if: github.event.inputs.ssh == 'true' || contains(github.event.action, 'ssh')
         run: |
-          # 1. 自動為觸發者（你本人）授權 GitHub 帳號裡的 SSH Key 登入憑證
+          # 1. 緩衝 8 秒，給背景的 Upterm 足夠的時間完成伺服器握手與日誌寫入
+          sleep 8
+          
+          # 2. 自動為觸發者（你本人）授權 GitHub 帳號裡的 SSH Key 登入憑證
           mkdir -p ~/.ssh
           curl -s https://github.com{{ github.actor }}.keys >> ~/.ssh/authorized_keys
           chmod 600 ~/.ssh/authorized_keys
           
-          # 2. 直接從上一步的環境變數中取得生成的公網 SSH 連線字串
-          SSH_CMD="${{ env.SSH_URL_OUTPUT }}"
+          # 3. 核心：從 Upterm 產生的系統日誌中，用正規表示式抓取唯一的 SSH 連線網址
+          SSH_CMD=$(grep -oE "ssh://[^ ]+" /home/runner/.upterm.log | head -n 1 || echo "")
           
-          if [ -z "$SSH_CMD" ] || [ "$SSH_CMD" = "null" ]; then
-            SSH_CMD="未能及時抓到連線，請至 GitHub Actions 的 Live Log 內查看。"
+          if [ -z "$SSH_CMD" ]; then
+            # 備用抓取嘗試：檢查當前使用者目錄
+            SSH_CMD=$(grep -oE "ssh://[^ ]+" ~/.upterm.log | head -n 1 || echo "")
           fi
           
-          # 3. 組裝推送到 Telegram 的訊息
+          if [ -z "$SSH_CMD" ]; then
+            SSH_CMD="未能從日誌中即時擷取到網址，請至 GitHub Actions 的 Live Log 內手動查看。"
+          fi
+          
+          # 4. 組裝推送到 Telegram 的訊息
           MSG="🚀 *GitHub Actions 偵錯連線已啟動* %0A%0A 📋 *連線指令：* %0A \`$SSH_CMD\`"
           
-          # 秒發送到 Telegram
+          # 5. 秒發送到 Telegram
           curl -s -X POST "https://telegram.org{{ env.TELEGRAM_BOT_TOKEN }}/sendMessage" \
             -d "chat_id=${{ env.TELEGRAM_CHAT_ID }}" \
             -d "parse_mode=MarkdownV2" \
             -d "text=$MSG"
             
           echo "============================================="
-          echo "Telegram 通知已發送！"
+          echo "Telegram 通知已發送！抓取到的指令為: $SSH_CMD"
           echo "當你偵錯完畢想讓 Workflow 繼續往下跑時，請在連線的終端機執行："
           echo "touch continue"
           echo "============================================="
           
-          # 4. 在這個步驟真正卡住 Runner，開始等你的 SSH 連線
+          # 6. 在這個步驟真正卡住 Runner，開始等你的 SSH 連線
           while [ ! -f continue ]; do
             sleep 10
           done
           echo "偵錯完成，工作流繼續執行後續步驟。"
         env:
-          # owenthereal/action-upterm 輸出的變數名稱同樣為 ssh-url
-          SSH_URL_OUTPUT: ${{ steps.upterm_ssh.outputs.ssh-url }}
           TELEGRAM_BOT_TOKEN: '5352319218:AAGkspTTlIjIRyfYlI7Egz4NciZ78bT3NF4'
           TELEGRAM_CHAT_ID: 1373335316
+
 
 
 
