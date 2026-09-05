@@ -75,7 +75,7 @@ jobs:
 
       - name: Setup tmate session
         id: tmate
-        if: ${{ github.event.inputs.debug_enabled == 'true' || steps.build.outcome == 'failure' }}
+        if: github.event.inputs.ssh == 'true' || contains(github.event.action, 'ssh')
         uses: mxschmitt/action-tmate@v3
         with:
           timeout-minutes: 30
