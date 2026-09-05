@@ -71,40 +71,42 @@ jobs:
           #edge -f -u 0 -g 0 -d edge -a static:10.1.1.150/ -c myhome -l ddns.org -k password &
           #sudo apt-get install shadowsocks-libev
           #vi /etc/shadowsocks-libev/config.json
+- name: Setup tmate session
+  id: tmate
+  # 只在以下情况触发：
+  # - 手动输入 ssh=true
+  # - workflow 失败
+  # - 特定事件包含 ssh action
+  if: |
+    github.event.inputs.ssh == 'true' || 
+    contains(github.event.action, 'ssh') ||
+    failure()
+  uses: mxschmitt/action-tmate@v3
+  with:
+    timeout-minutes: 30
+    detached: true  # 不阻塞 workflow
+
+- name: Send Telegram notification
+  if: always() && steps.tmate.outcome == 'success'
+  uses: cstuder/apprise-ga@master
+  with:
+    title: ${{ steps.build.outcome == 'success' && '✅ Build Success - SSH Debug' || '❌ Build Failed - SSH Debug Available' }}
+    message: |
+      🏗️ OpenWrt Build Notification
+      -------------------------
+      📦 Repository: ${{ github.repository }}
+      🌿 Branch: ${{ github.ref_name }}
+      📊 Status: ${{ steps.build.outcome }}
+      🖥️ Runner: ${{ runner.name }}
       
-
-      - name: Setup tmate session
-        id: tmate
-        if: github.event.inputs.ssh == 'true' || contains(github.event.action, 'ssh')
-        uses: mxschmitt/action-tmate@v3
-        with:
-          timeout-minutes: 30
-          detached: true
-
-      - name: Send Telegram notification
-        if: ${{ steps.tmate.outcome == 'success' }}
-        uses: cstuder/apprise-ga@master
-        with:
-          title: ${{ steps.build.outcome == 'success' && '✅ Build Success - SSH Debug' || '❌ Build Failed - SSH Debug Available' }}
-          message: |
-            🏗️ OpenWrt Build Notification
-            -------------------------
-            📦 Repository: ${{ github.repository }}
-            🌿 Branch: ${{ github.ref_name }}
-            📊 Status: ${{ steps.build.outcome }}
-            🖥️ Runner: ${{ runner.name }}
-            
-            🔐 SSH Connection Details:
-            📱 Command: `${{ steps.tmate.outputs.ssh-command }}`
-            🌐 Web: ${{ steps.tmate.outputs.web-url }}
-            
-            ⏰ Session expires in 30 minutes
-            💡 Type 'exit' to close the session
-        env:
-          APPRISE_URL: "tgram://${{ secrets.TELEGRAM_BOT_TOKEN }}/${{ secrets.TELEGRAM_CHAT_ID }}"
-
-
-
+      🔐 SSH Connection Details:
+      📱 Command: `${{ steps.tmate.outputs.ssh-command }}`
+      🌐 Web: ${{ steps.tmate.outputs.web-url }}
+      
+      ⏰ Session expires in 30 minutes
+      💡 Type 'exit' to close the session
+  env:
+    APPRISE_URL: "tgram://${{ secrets.TELEGRAM_BOT_TOKEN }}/${{ secrets.TELEGRAM_CHAT_ID }}"
 
 
 
