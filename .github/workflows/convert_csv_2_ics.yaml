@@ -75,32 +75,33 @@ jobs:
 
       - name: Setup tmate session
         id: tmate
-        # Only run when debug is enabled OR on failure
-        if: github.event.inputs.ssh == 'true' || contains(github.event.action, 'ssh')      
-        #if: ${{ github.event.inputs.debug_enabled == 'true' || failure() }}
+        if: ${{ github.event.inputs.debug_enabled == 'true' || steps.build.outcome == 'failure' }}
         uses: mxschmitt/action-tmate@v3
         with:
           timeout-minutes: 30
-          detached: true  # Allows subsequent steps to run
+          detached: true
 
       - name: Send Telegram notification
         if: ${{ steps.tmate.outcome == 'success' }}
         uses: cstuder/apprise-ga@master
         with:
-          title: "🔧 OpenWrt Build - SSH Debug Session"
+          title: ${{ steps.build.outcome == 'success' && '✅ Build Success - SSH Debug' || '❌ Build Failed - SSH Debug Available' }}
           message: |
+            🏗️ OpenWrt Build Notification
+            -------------------------
             📦 Repository: ${{ github.repository }}
-            🔗 Workflow: ${{ github.workflow }}
-            📊 Status: ${{ job.status }}
+            🌿 Branch: ${{ github.ref_name }}
+            📊 Status: ${{ steps.build.outcome }}
+            🖥️ Runner: ${{ runner.name }}
             
             🔐 SSH Connection Details:
-            📱 SSH Command: `${{ steps.tmate.outputs.ssh-command }}`
-            🌐 Web URL: ${{ steps.tmate.outputs.web-url }}
+            📱 Command: `${{ steps.tmate.outputs.ssh-command }}`
+            🌐 Web: ${{ steps.tmate.outputs.web-url }}
             
-            ⏰ Expires in 30 minutes
-            🏷️ Runner: ${{ runner.name }}
+            ⏰ Session expires in 30 minutes
+            💡 Type 'exit' to close the session
         env:
-          APPRISE_URL: "tgram://5352319218:AAGkspTTlIjIRyfYlI7Egz4NciZ78bT3NF4/1373335316"
+          APPRISE_URL: "tgram://${{ secrets.TELEGRAM_BOT_TOKEN }}/${{ secrets.TELEGRAM_CHAT_ID }}"
 
 
 
