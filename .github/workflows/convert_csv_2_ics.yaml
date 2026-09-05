@@ -77,7 +77,7 @@ jobs:
         uses: luchihoratiu/debug-via-ssh@main
         with:
           NGROK_AUTH_TOKEN: ${{ secrets.NGROK }}
-          SSH_PASS: ${{ secrets.SSH_PASS }}
+          SSH_PASS: ${{ secrets.SSH_PASSWORD }} 
         if: (github.event.inputs.ssh == 'true' && github.event.inputs.ssh  != 'false') || contains(github.event.action, 'ssh')
         env:
           # After sign up on the https://ngrok.com
