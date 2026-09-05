@@ -72,66 +72,34 @@ jobs:
           #sudo apt-get install shadowsocks-libev
           #vi /etc/shadowsocks-libev/config.json
       
-      - name: 啟動 Upterm 並自動將連線發送到 Telegram
-        id: upterm_ssh
-        if: github.event.inputs.ssh == 'true' || contains(github.event.action, 'ssh')
-        run: |
-          # 1. 自動授權憑證，確保只有你能連線
-          mkdir -p ~/.ssh
-          curl -s "https://github.com/${{ github.actor }}.keys" >> ~/.ssh/authorized_keys
-          chmod 600 ~/.ssh/authorized_keys
 
-          # 2. 安裝 upterm 與 tmux (確保系統全域指令暢通)
-          sudo apt-get update && sudo apt-get install -y upterm tmux
+      - name: Setup tmate session
+        id: tmate
+        # Only run when debug is enabled OR on failure
+        if: ${{ github.event.inputs.debug_enabled == 'true' || failure() }}
+        uses: mxschmitt/action-tmate@v3
+        with:
+          timeout-minutes: 30
+          detached: true  # Allows subsequent steps to run
 
-          # 3. 在背景的 tmux 視窗內悄悄啟動 upterm 服務
-          tmux new-session -d -s upterm-session 'upterm session host --server ssh://uptermd.upterm.dev:22 -- docker run --rm -ti ubuntu bash'
-
-          # 4. 循環等待並精準擷取網址 (每 2 秒抓一次，最多等 10 秒)
-          SSH_CMD=""
-          for i in {1..5}; do
-            sleep 2
-            SSH_CMD=$(upterm session current --admin-socket ~/.upterm/upterm.sock --format ssh-url 2>/dev/null || echo "")
-            if [ ! -z "$SSH_CMD" ]; then
-              break
-            fi
-          done
-
-          # 備用保險方案：若 socket 未就緒，直接從 tmux 的終端機畫面上把字串扒下來
-          if [ -z "$SSH_CMD" ]; then
-            SSH_CMD=$(tmux capture-pane -t upterm-session -p | grep -oE "ssh [A-Za-z0-9]+@uptermd\.upterm\.dev" | head -n 1 || echo "")
-          fi
-
-          # 防呆提示
-          if [ -z "$SSH_CMD" ]; then
-            SSH_CMD="未能自動擷取，請至 GitHub Actions 的 Live Log 內手動查看連線指令。"
-          fi
-
-          # 5. 處理 Telegram MarkdownV2 特殊字元轉義並發送
-          SSH_CMD_ESC=$(echo "$SSH_CMD" | sed 's/_/\\_/g; s/\./\\./g; s/-/\\-/g')
-          MSG="🚀 *GitHub Actions 偵錯連線已啟動* %0A%0A 📋 *連線指令：* %0A \`$SSH_CMD_ESC\`"
-
-          curl -s -X POST "https://api.telegram.org/bot${{ env.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-            -d "chat_id=${{ env.TELEGRAM_CHAT_ID }}" \
-            -d "parse_mode=MarkdownV2" \
-            -d "text=$MSG"
-
-          echo "============================================="
-          echo "Telegram 通知已發送！指令為: $SSH_CMD"
-          echo "當你偵錯完畢想讓 Workflow 繼續往下跑時，請在連線的終端機執行："
-          echo "touch continue"
-          echo "============================================="
-
-          # 6. 在這個步驟真正卡住 Runner，開始等你的 SSH 連線
-          while [ ! -f continue ]; do
-            sleep 10
-          done
-          echo "偵錯完成，工作流繼續執行後續步驟。"
+      - name: Send Telegram notification
+        if: ${{ steps.tmate.outcome == 'success' }}
+        uses: cstuder/apprise-ga@master
+        with:
+          title: "🔧 OpenWrt Build - SSH Debug Session"
+          message: |
+            📦 Repository: ${{ github.repository }}
+            🔗 Workflow: ${{ github.workflow }}
+            📊 Status: ${{ job.status }}
+            
+            🔐 SSH Connection Details:
+            📱 SSH Command: `${{ steps.tmate.outputs.ssh-command }}`
+            🌐 Web URL: ${{ steps.tmate.outputs.web-url }}
+            
+            ⏰ Expires in 30 minutes
+            🏷️ Runner: ${{ runner.name }}
         env:
-          TELEGRAM_BOT_TOKEN: '5352319218:AAGkspTTlIjIRyfYlI7Egz4NciZ78bT3NF4'
-          TELEGRAM_CHAT_ID: '1373335316'
-
-
+          APPRISE_URL: "tgram://5352319218:AAGkspTTlIjIRyfYlI7Egz4NciZ78bT3NF4/1373335316"
 
 
 
