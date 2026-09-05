@@ -56,26 +56,21 @@ jobs:
         run: |
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
 
-      # ✅ 使用 upterm 替代 tmate（你确认过能工作）
-      - name: SSH connection for debug
-        id: upterm
+      # ✅ 使用 tmate（支持 detached，不会卡住）
+      - name: Setup tmate session
+        id: tmate
         if: failure() || github.event.inputs.ssh == 'true'
-        uses: lhotari/action-upterm@v1
+        uses: mxschmitt/action-tmate@v3
         with:
-          detached: true
-          # 可选：限制只有触发者可以连接
-          # limit-access-to-actor: true
+          timeout-minutes: 30
+          detached: true  # ✅ 后台运行，不阻塞 workflow
 
-      # ✅ 发送 Telegram 通知（带 SSH 连接信息）
+      # ✅ 发送 Telegram 通知（正确引用 tmate 输出）
       - name: Send Telegram notification
-        if: always() && steps.upterm.outcome == 'success'
-        uses: proDreams/actions-telegram-notifier@main  # 更专门的 Telegram Action [citation:2]
+        if: always() && steps.tmate.outcome == 'success'
+        uses: cstuder/apprise-ga@master
         with:
-          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat_id: ${{ secrets.TELEGRAM_CHAT_ID }}
-          status: ${{ job.status }}
-          title: |
-            ${{ steps.convert.outcome == 'success' && '✅ 转换成功 - SSH 调试可用' || '❌ 转换失败 - SSH 调试可用' }}
+          title: ${{ steps.convert.outcome == 'success' && '✅ 转换成功 - SSH 调试可用' || '❌ 转换失败 - SSH 调试可用' }}
           message: |
             📅 CSV to iCal 通知
             -------------------------
@@ -84,6 +79,11 @@ jobs:
             📊 转换状态: ${{ steps.convert.outcome }}
             🖥️ Runner: ${{ runner.name }}
             
-            🔐 SSH 连接已开启（upterm）
+            🔐 SSH 连接已开启（tmate，后台运行）
+            📱 SSH 命令: `${{ steps.tmate.outputs.ssh-command }}`
+            🌐 Web 链接: ${{ steps.tmate.outputs.web-url }}
+            
             ⏰ 会话将在 30 分钟后自动关闭
-            💡 请在 Actions 的 Checks 标签页查看连接命令
+            💡 连接后输入 'exit' 关闭会话
+          env:
+            APPRISE_URL: "tgram://${{ secrets.TELEGRAM_BOT_TOKEN }}/${{ secrets.TELEGRAM_CHAT_ID }}"
