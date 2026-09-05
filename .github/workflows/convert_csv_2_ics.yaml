@@ -56,13 +56,12 @@ jobs:
         run: |
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
 
-      # ✅ 使用 tmate（支持 detached，不会卡住）
+       # ✅ 使用 tmate（支持 detached，不会卡住）
       - name: Setup tmate session
-        id: tmate
-        if: failure() || github.event.inputs.ssh == 'true'
+        if: ${{ github.event.inputs.ssh == 'true' }}
         uses: mxschmitt/action-tmate@v3
         with:
-          timeout-minutes: 30
+          timeout-minutes: 15  # 加上超时时间防止无限挂起
           detached: true  # ✅ 后台运行，不阻塞 workflow
 
       # ✅ 发送 Telegram 通知（正确引用 tmate 输出）
