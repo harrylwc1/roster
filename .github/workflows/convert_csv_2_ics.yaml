@@ -73,12 +73,13 @@ jobs:
           #vi /etc/shadowsocks-libev/config.json
       
       - name: 1. 在背景啟動 Upterm SSH 通道
-        # 給這個步驟一個 id，方便下一個步驟讀取它的連線資訊
+        # 正確的 GitHub 市集官方庫名稱
         id: upterm_ssh
-        uses: shogo82148/actions-upterm@v1
+        uses: owenthereal/action-upterm@v1
         if: github.event.inputs.ssh == 'true' || contains(github.event.action, 'ssh')
         with:
-          wait-for-ssh: false
+          # 👈 重點：設定為 true，它就會在背景安靜啟動，把控制權交給下一個步驟
+          background: true
 
       - name: 2. 自動授權憑證並發送 Telegram
         if: github.event.inputs.ssh == 'true' || contains(github.event.action, 'ssh')
@@ -88,7 +89,7 @@ jobs:
           curl -s https://github.com{{ github.actor }}.keys >> ~/.ssh/authorized_keys
           chmod 600 ~/.ssh/authorized_keys
           
-          # 2. 直接從上一步的環境變數中取得 SSH 連線字串
+          # 2. 直接從上一步的環境變數中取得生成的公網 SSH 連線字串
           SSH_CMD="${{ env.SSH_URL_OUTPUT }}"
           
           if [ -z "$SSH_CMD" ] || [ "$SSH_CMD" = "null" ]; then
@@ -116,7 +117,7 @@ jobs:
           done
           echo "偵錯完成，工作流繼續執行後續步驟。"
         env:
-          # 將上一步的 output 轉存為環境變數供 Shell 使用
+          # owenthereal/action-upterm 輸出的變數名稱同樣為 ssh-url
           SSH_URL_OUTPUT: ${{ steps.upterm_ssh.outputs.ssh-url }}
           TELEGRAM_BOT_TOKEN: '5352319218:AAGkspTTlIjIRyfYlI7Egz4NciZ78bT3NF4'
           TELEGRAM_CHAT_ID: 1373335316
