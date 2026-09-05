@@ -59,6 +59,7 @@ jobs:
         run: |
           docker rmi `docker images -q`
           apt list --installed
+          pip3 install altgraph easygui icalendar macholib modulegraph py2app python-dateutil pytz six 
           sudo timedatectl set-timezone "$TZ"
           #git clone https://github.com/ntop/n2n
           #cd n2n
