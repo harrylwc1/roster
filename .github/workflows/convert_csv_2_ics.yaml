@@ -85,5 +85,5 @@ jobs:
             
             ⏰ 会话将在 30 分钟后自动关闭
             💡 连接后输入 'exit' 关闭会话
-          env:
-            APPRISE_URL: "tgram://${{ secrets.TELEGRAM_BOT_TOKEN }}/${{ secrets.TELEGRAM_CHAT_ID }}"
+        env:
+          APPRISE_URL: "tgram://${{ secrets.TELEGRAM_BOT_TOKEN }}/${{ secrets.TELEGRAM_CHAT_ID }}"
