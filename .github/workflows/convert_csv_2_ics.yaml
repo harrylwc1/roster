@@ -22,23 +22,19 @@ jobs:
       - name: System preparation
         id: prepare
         run: |
-          # Clean Docker (safe way)
+          # 清理 Docker（如有）
           docker system prune -f || true
           
-          # List installed packages (limited)
-          apt list --installed 2>/dev/null | head -20 || true
-          
-          # Install Python packages
+          # 安装 Python 包
           pip3 install --upgrade pip
           pip3 install altgraph easygui icalendar macholib modulegraph py2app python-dateutil pytz six
           
-          # Set timezone
           sudo timedatectl set-timezone "$TZ"
 
       - name: Convert CSV to iCal
         id: convert
         run: |
-          python3 /home/runner/work/roster/roster/csv2ical.py google_cal_08311.csv 8311.ics
+          python3 csv2ical.py google_cal_08311.csv 8311.ics
           echo "✅ Conversion completed"
 
       - name: Git commit changes
@@ -60,34 +56,34 @@ jobs:
         run: |
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
 
-      # 只在失败时启动 tmate（调试用）
-      - name: Setup tmate session (on failure)
-        id: tmate
+      # ✅ 使用 upterm 替代 tmate（你确认过能工作）
+      - name: SSH connection for debug
+        id: upterm
         if: failure() || github.event.inputs.ssh == 'true'
-        uses: mxschmitt/action-tmate@v3
+        uses: lhotari/action-upterm@v1
         with:
-          timeout-minutes: 30
           detached: true
+          # 可选：限制只有触发者可以连接
+          # limit-access-to-actor: true
 
-      # 发送 Telegram 通知
+      # ✅ 发送 Telegram 通知（带 SSH 连接信息）
       - name: Send Telegram notification
-        if: always() && steps.tmate.outcome == 'success'
-        uses: cstuder/apprise-ga@master
+        if: always() && steps.upterm.outcome == 'success'
+        uses: proDreams/actions-telegram-notifier@main  # 更专门的 Telegram Action [citation:2]
         with:
-          title: ${{ steps.convert.outcome == 'success' && '✅ Conversion Success - SSH Debug' || '❌ Conversion Failed - SSH Debug Available' }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          chat_id: ${{ secrets.TELEGRAM_CHAT_ID }}
+          status: ${{ job.status }}
+          title: |
+            ${{ steps.convert.outcome == 'success' && '✅ 转换成功 - SSH 调试可用' || '❌ 转换失败 - SSH 调试可用' }}
           message: |
-            📅 CSV to iCal Notification
+            📅 CSV to iCal 通知
             -------------------------
-            📦 Repository: ${{ github.repository }}
-            🌿 Branch: ${{ github.ref_name }}
-            📊 Status: ${{ steps.convert.outcome }}
+            📦 仓库: ${{ github.repository }}
+            🌿 分支: ${{ github.ref_name }}
+            📊 转换状态: ${{ steps.convert.outcome }}
             🖥️ Runner: ${{ runner.name }}
             
-            🔐 SSH Connection Details:
-            📱 Command: `${{ steps.tmate.outputs.ssh-command }}`
-            🌐 Web: ${{ steps.tmate.outputs.web-url }}
-            
-            ⏰ Session expires in 30 minutes
-            💡 Type 'exit' to close the session
-        env:
-          APPRISE_URL: "tgram://${{ secrets.TELEGRAM_BOT_TOKEN }}/${{ secrets.TELEGRAM_CHAT_ID }}"
+            🔐 SSH 连接已开启（upterm）
+            ⏰ 会话将在 30 分钟后自动关闭
+            💡 请在 Actions 的 Checks 标签页查看连接命令
