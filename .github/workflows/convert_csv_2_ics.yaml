@@ -3,7 +3,7 @@ name: CSV2ICS
 on:
   workflow_dispatch:
     inputs:
-      enable_ssh:
+      ssh:
         description: '啟動 SSH 除錯模式？(輸入 true 啟動)'
         required: false
         default: 'false'
