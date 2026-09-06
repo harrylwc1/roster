@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       ssh:
-        description: 'SSH connection to Actions'
+        description: '是否強制啟動 SSH？(填入 true 啟動)'
         required: false
         default: 'false'
 
@@ -56,9 +56,29 @@ jobs:
         run: |
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
 
-      - name: Setup SSH Debug Session
-        if: ${{ github.event.inputs.ssh == 'true' }}
-        uses: P3TERX/ssh2actions@main
+      # ====================================================================
+      # 🚀 關鍵除錯步驟：Cloudflare Tunnel
+      # 當上方任何一步失敗 (failure())，或者你手動開啟 (inputs.ssh == 'true') 就會啟動
+      # ====================================================================
+      - name: 啟動 Cloudflare SSH 隧道 (除錯專用)
+        if: ${{ failure() || github.event.inputs.ssh == 'true' }}
         env:
-           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          CF_TOKEN: ${{ secrets.CF_TUNNEL_TOKEN }}
+        run: |
+          echo "正在安裝 Cloudflare 隧道工具..."
+          # 下載並安裝 Cloudflare 官方最新版工具
+          wget -q https://github.com
+          sudo dpkg -i cloudflared-linux-amd64.deb
+          
+          echo "正在後台啟動隧道並將 SSH (Port 22) 對外開放..."
+          # 在背景默默啟動隧道，指向這台機器的 SSH 連接埠 (22)
+          cloudflared tunnel --no-autoupdate run --token $CF_TOKEN &
+          
+          echo "=================================================="
+          echo "🚀 Cloudflare 隧道已成功建立！"
+          echo "請回到你的 Cloudflare Zero Trust 後台查看連線狀態。"
+          echo "本步驟將暫停 30 分鐘等你連線除錯..."
+          echo "=================================================="
+          
+          # 讓機器強制暫停 30 分鐘 (1800 秒)，方便你進去查為什麼 python 或 git 壞掉
+          sleep 1800
