@@ -56,36 +56,9 @@ jobs:
         run: |
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
 
-       # ✅ 使用 tmate（支持 detached，不会卡住）
-      - name: Setup tmate session
+      - name: Setup SSH Debug Session
         if: ${{ github.event.inputs.ssh == 'true' }}
-        uses: owenthereal/action-upterm@v1
-        with:
-          detached: true 
-          #uses: mxschmitt/action-tmate@v3
-        #with:
-         # timeout-minutes: 15  # 加上超时时间防止无限挂起
-         # detached: true  # ✅ 后台运行，不阻塞 workflow
-
-      # ✅ 发送 Telegram 通知（正确引用 tmate 输出）
-      - name: Send Telegram notification
-        if: always() && steps.tmate.outcome == 'success'
-        uses: cstuder/apprise-ga@master
-        with:
-          title: ${{ steps.convert.outcome == 'success' && '✅ 转换成功 - SSH 调试可用' || '❌ 转换失败 - SSH 调试可用' }}
-          message: |
-            📅 CSV to iCal 通知
-            -------------------------
-            📦 仓库: ${{ github.repository }}
-            🌿 分支: ${{ github.ref_name }}
-            📊 转换状态: ${{ steps.convert.outcome }}
-            🖥️ Runner: ${{ runner.name }}
-            
-            🔐 SSH 连接已开启（tmate，后台运行）
-            📱 SSH 命令: `${{ steps.tmate.outputs.ssh-command }}`
-            🌐 Web 链接: ${{ steps.tmate.outputs.web-url }}
-            
-            ⏰ 会话将在 30 分钟后自动关闭
-            💡 连接后输入 'exit' 关闭会话
+        uses: P3TERX/ssh2actions@main
         env:
-          APPRISE_URL: "tgram://${{ secrets.TELEGRAM_BOT_TOKEN }}/${{ secrets.TELEGRAM_CHAT_ID }}"
+           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
