@@ -1,12 +1,12 @@
-name: CSV2ICS (with Quick Tunnel)
+name: CSV2ICS (with tmate SSH)
 
 on:
   workflow_dispatch:
     inputs:
-      ssh:
-        description: '是否啟動 SSH 快速隧道？(輸入 true 啟動)'
+      enable_ssh:
+        description: '啟動 SSH 除錯模式？(輸入 true 啟動)'
         required: false
-        default: 'true'   # 改為預設開啟，方便除錯
+        default: 'true'
 
 env:
   TZ: Asia/Hong_Kong
@@ -58,46 +58,10 @@ jobs:
           G_REPO="${{ github.repository }}"
           git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@${G_HOST}/${G_REPO}.git"
 
-      # ---------- 🌐 啟動 Cloudflare 快速隧道（方案二） ----------
-      - name: 啟動 Cloudflare 快速隧道 (臨時除錯)
-        if: ${{ failure() || github.event.inputs.ssh == 'true' }}
-        run: |
-          echo "📦 下載 cloudflared..."
-          curl -L -o cloudflared.deb \
-            "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb"
-          sudo dpkg -i cloudflared.deb
-
-          echo "🚀 啟動快速隧道，將 SSH (port 22) 暴露..."
-          # 在背景運行隧道
-          cloudflared tunnel --url localhost:22 &
-          # 等幾秒等隧道建立
-          sleep 8
-
-          # 攞臨時網址（隧道對外嘅 HTTPS 地址）
-          TUNNEL_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].ingress[0].url')
-          # 將 https:// 轉換為 SSH 可用嘅 hostname
-          SSH_HOST=$(echo $TUNNEL_URL | sed 's|https://||')
-
-          echo ""
-          echo "=================================================="
-          echo "✅ Cloudflare 快速隧道已啟動！"
-          echo "🔗 臨時網址：$TUNNEL_URL"
-          echo ""
-          echo "請喺你嘅 **本地電腦** 執行以下指令連線："
-          echo ""
-          echo "  1) 安裝 cloudflared（如果未裝）："
-          echo "     brew install cloudflared        # (macOS)"
-          echo "     scoop install cloudflared       # (Windows)"
-          echo ""
-          echo "  2) 用以下指令 SSH 入去："
-          echo "     cloudflared access ssh --hostname $SSH_HOST"
-          echo "     ssh ubuntu@$SSH_HOST"
-          echo ""
-          echo "（注意：首次連線可能需要通過 Cloudflare 瀏覽器驗證）"
-          echo "=================================================="
-          echo ""
-          echo "⏳ 隧道將保持 30 分鐘，你可以慢慢除錯..."
-          echo "（可按 Ctrl+C 取消工作流，或等佢自動結束）"
-
-          # 保持工作流運行，等你連線
-          sleep 1800
+      # ---------- 🟢 方法一：tmate SSH 除錯 ----------
+      - name: 啟動 tmate SSH 連線
+        if: ${{ failure() || github.event.inputs.enable_ssh == 'true' }}
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true   # 只限你本人（GitHub 帳戶）可以連線
+          timeout-minutes: 60           # 60 分鐘後自動斷線（可自行調整）
