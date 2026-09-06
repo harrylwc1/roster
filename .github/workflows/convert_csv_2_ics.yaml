@@ -58,12 +58,9 @@ jobs:
           G_REPO="${{ github.repository }}"
           git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@${G_HOST}/${G_REPO}.git"
 
-      # ✅  使 用  upterm 替 代  tmate（ 你 确 认 过 能 工 作 ）
+      # ✅  使 用  upterm 
       - name: SSH connection for debug
         id: upterm
         if: failure() || github.event.inputs.ssh == 'true'
         uses: lhotari/action-upterm@v1
-        with:
-          detached: true
-          # 可 选 ： 限 制 只 有 触 发 者 可 以 连 接
-          # limit-access-to-actor: true
+  
