@@ -1,4 +1,4 @@
-name: CSV2ICS (with tmate SSH)
+name: CSV2ICS
 
 on:
   workflow_dispatch:
