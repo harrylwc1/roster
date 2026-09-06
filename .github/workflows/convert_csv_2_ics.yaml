@@ -59,10 +59,13 @@ jobs:
        # ✅ 使用 tmate（支持 detached，不会卡住）
       - name: Setup tmate session
         if: ${{ github.event.inputs.ssh == 'true' }}
-        uses: mxschmitt/action-tmate@v3
+        uses: owenthereal/action-upterm@v1
         with:
-          timeout-minutes: 15  # 加上超时时间防止无限挂起
-          detached: true  # ✅ 后台运行，不阻塞 workflow
+          detached: true 
+          #uses: mxschmitt/action-tmate@v3
+        #with:
+         # timeout-minutes: 15  # 加上超时时间防止无限挂起
+         # detached: true  # ✅ 后台运行，不阻塞 workflow
 
       # ✅ 发送 Telegram 通知（正确引用 tmate 输出）
       - name: Send Telegram notification
