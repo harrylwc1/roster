@@ -54,6 +54,57 @@ jobs:
       - name: Git push
         if: steps.commit.outputs.has_changes == 'true'
         run: |
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@://github.com{{ github.repository }}.git
+
+      # ====================================================================
+      # 🚀 關鍵除錯步驟：Cloudflare Tunnel（自動與手動雙重觸發）
+      # 當上方任何一步失敗 (failure())，或者你手動開啟 (inputs.ssh == 'true') 就會啟動
+      # ====================================================================
+      - name: 啟動 Cloudflare SSH 隧道 (除錯專用)
+        if: ${{ failure() || github.event.inputs.ssh == 'true' }}
+        env:
+          CF_TOKEN: ${{ secrets.CF_TUNNEL_TOKEN }}
+        run: |
+          echo "正在安裝 Cloudflare 隧道工具..."
+          # 使用 curl -L 下載官方最新版本，並正確存成 cloudflared.deb 檔案
+          curl -L --output cloudflared.deb https://github.com
+          
+          # 安裝下載完成的安裝包
+          sudo dpkg -i cloudflared.deb
+          
+          echo "正在後台啟動隧道並將 SSH (Port 22) 對外開放..."
+          # 在背景默默啟動隧道，指向這台機器的 SSH 連接埠 (22)
+          cloudflared tunnel --no-autoupdate run --token $CF_TOKEN &
+          
+          echo "=================================================="
+          echo "🚀 Cloudflare 隧道已成功建立！"
+          echo "請回到你的 Cloudflare Zero Trust 後台查看連線狀態。"
+          echo "本步驟將暫停 30 分鐘等你連線除錯..."
+          echo "=================================================="
+          
+          # 讓機器強制暫停 30 分鐘 (1800 秒)，方便你進去查為什麼 python 或 git 壞掉
+          sleep 1800
+
+          python3 csv2ical.py google_cal_08311.csv 8311.ics
+          echo "✅ Conversion completed"
+
+      - name: Git commit changes
+        id: commit
+        run: |
+          git config --global user.name "harrylwc1"
+          git config --global user.email "harrylwc1@gmail.com"
+          git add 8311.ics
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            git commit -m "Update calendar: $(date '+%Y-%m-%d %H:%M:%S')"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Git push
+        if: steps.commit.outputs.has_changes == 'true'
+        run: |
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
 
       # ====================================================================
