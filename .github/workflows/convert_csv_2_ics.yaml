@@ -1,12 +1,12 @@
-name: CSV2ICS
+name: CSV2ICS (with Quick Tunnel)
 
 on:
   workflow_dispatch:
     inputs:
       ssh:
-        description: '是否強制啟動 SSH？(填入 true 啟動)'
+        description: '是否啟動 SSH 快速隧道？(輸入 true 啟動)'
         required: false
-        default: 'false'
+        default: 'true'   # 改為預設開啟，方便除錯
 
 env:
   TZ: Asia/Hong_Kong
@@ -19,24 +19,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ---------- 基本環境準備 ----------
       - name: System preparation
-        id: prepare
         run: |
-          # 清理 Docker（如有）
-          docker system prune -f || true
-          
-          # 安装 Python 包
           pip3 install --upgrade pip
-          pip3 install altgraph easygui icalendar macholib modulegraph py2app python-dateutil pytz six
-          
+          pip3 install icalendar python-dateutil pytz six
           sudo timedatectl set-timezone "$TZ"
 
+      # ---------- CSV 轉 iCal ----------
       - name: Convert CSV to iCal
-        id: convert
         run: |
+          if [ ! -f csv2ical.py ]; then
+            echo "❌ csv2ical.py 唔存在，請檢查倉庫！"
+            exit 1
+          fi
           python3 csv2ical.py google_cal_08311.csv 8311.ics
-          echo "✅ Conversion completed"
+          echo "✅ 轉換完成"
 
+      # ---------- Git 提交（如有變更） ----------
       - name: Git commit changes
         id: commit
         run: |
@@ -54,47 +54,50 @@ jobs:
       - name: Git push
         if: steps.commit.outputs.has_changes == 'true'
         run: |
-          # 💡 動態拼裝 Git 網址，防止系統惡意截斷
-          G_HOST=$(printf "github.com")
+          G_HOST="github.com"
           G_REPO="${{ github.repository }}"
           git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@${G_HOST}/${G_REPO}.git"
 
-      # ====================================================================
-      # 🚀 關鍵除錯步驟：Cloudflare Tunnel（高級字串拼裝抗截斷版）
-      # ====================================================================
-      - name: 啟動 Cloudflare SSH 隧道 (除錯專用)
+      # ---------- 🌐 啟動 Cloudflare 快速隧道（方案二） ----------
+      - name: 啟動 Cloudflare 快速隧道 (臨時除錯)
         if: ${{ failure() || github.event.inputs.ssh == 'true' }}
-        env:
-          CF_TOKEN: ${{ secrets.CF_TUNNEL_TOKEN }}
         run: |
-          echo "正在安裝 Cloudflare 隧道工具..."
-          
-          # 💡 用最安全的字串拆解，繞過任何代碼過濾器
-          PART1="https:/"
-          PART2="/github.com"
-          PART3="/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb"
-          
-          DOWNLOAD_URL="${PART1}${PART2}${PART3}"
-          curl -fL --retry 3 --output cloudflared.deb "$DOWNLOAD_URL"
-          
-          # 安全檢查：確保檔案下載成功且不是空網頁
-          if [ ! -s cloudflared.deb ]; then
-            echo "❌ 檔案下載失敗或為空，請檢查網路！"
-            exit 1
-          fi
-          
-          # 安裝下載完成的安裝包
+          echo "📦 下載 cloudflared..."
+          curl -L -o cloudflared.deb \
+            "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb"
           sudo dpkg -i cloudflared.deb
-          
-          echo "正在後台啟動隧道並將 SSH (Port 22) 對外開放..."
-          # 在背景默默啟動隧道，指向這台機器的 SSH 連接埠 (22)
-          cloudflared tunnel --no-autoupdate run --token "$CF_TOKEN" &
-          
+
+          echo "🚀 啟動快速隧道，將 SSH (port 22) 暴露..."
+          # 在背景運行隧道
+          cloudflared tunnel --url localhost:22 &
+          # 等幾秒等隧道建立
+          sleep 8
+
+          # 攞臨時網址（隧道對外嘅 HTTPS 地址）
+          TUNNEL_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].ingress[0].url')
+          # 將 https:// 轉換為 SSH 可用嘅 hostname
+          SSH_HOST=$(echo $TUNNEL_URL | sed 's|https://||')
+
+          echo ""
           echo "=================================================="
-          echo "🚀 Cloudflare 隧道已成功建立！"
-          echo "請回到你的 Cloudflare Zero Trust 後台查看連線狀態。"
-          echo "本步驟將暫停 30 分鐘等你連線除錯..."
+          echo "✅ Cloudflare 快速隧道已啟動！"
+          echo "🔗 臨時網址：$TUNNEL_URL"
+          echo ""
+          echo "請喺你嘅 **本地電腦** 執行以下指令連線："
+          echo ""
+          echo "  1) 安裝 cloudflared（如果未裝）："
+          echo "     brew install cloudflared        # (macOS)"
+          echo "     scoop install cloudflared       # (Windows)"
+          echo ""
+          echo "  2) 用以下指令 SSH 入去："
+          echo "     cloudflared access ssh --hostname $SSH_HOST"
+          echo "     ssh ubuntu@$SSH_HOST"
+          echo ""
+          echo "（注意：首次連線可能需要通過 Cloudflare 瀏覽器驗證）"
           echo "=================================================="
-          
-          # 讓機器強制暫停 30 分鐘 (1800 秒)，方便你進去查原始碼
+          echo ""
+          echo "⏳ 隧道將保持 30 分鐘，你可以慢慢除錯..."
+          echo "（可按 Ctrl+C 取消工作流，或等佢自動結束）"
+
+          # 保持工作流運行，等你連線
           sleep 1800
