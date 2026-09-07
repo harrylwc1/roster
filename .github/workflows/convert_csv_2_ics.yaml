@@ -62,5 +62,6 @@ jobs:
       - name: SSH connection for debug
         id: upterm
         if: failure() || github.event.inputs.ssh == 'true'
-        uses: lhotari/action-upterm@v1
-  
+         #uses: lhotari/action-upterm@v1
+         uses: warp-build/action-debugger@v1
+    
