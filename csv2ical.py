@@ -5,11 +5,11 @@ from datetime import datetime
 from random import randint
 import argparse
 from datetime import timedelta
+
 parser = argparse.ArgumentParser()
 parser.add_argument('input', type=str, help='Input csv file containing calendar events')
 parser.add_argument('output', type=str, help='Output ics file')
 args = parser.parse_args()
-
 
 
 def csv2ical(input_file, output_file):
@@ -17,15 +17,6 @@ def csv2ical(input_file, output_file):
 
   Convert a cvs file with event information to ical, which can be imported into
   Google Calendar, Microsoft Outlook and etc.
-
-  Parameters
-  ----------
-  input_file : str
-  output_file : str
-
-  Returns
-  -------
-  Empty
   """
  
   ### set reminder before shift start ####
@@ -34,7 +25,6 @@ def csv2ical(input_file, output_file):
   
   with open(input_file) as csv_file:
     reader = csv.reader(csv_file)
-
 
     # required to be compliant:
     cal = Calendar()
@@ -45,31 +35,37 @@ def csv2ical(input_file, output_file):
     cal.add('X-WR-CALDESC', '更表')
     cal.add('CALSCALE', 'GREGORIAN')
 
-
     for n, row in enumerate(reader):
       #Skip header row
       if n == 0:
         continue
+      
       summary = ''
-      #print(row[2]) 
-      if row[2] == '':
+      # 👉 修正點 1：將時間欄位去除前後空格，避免長度或比對錯誤
+      time_val = row[2].strip() if len(row) > 2 else ''
+      
+      if time_val == '':
            dtstart = datetime.strptime(row[1]+' 13:00', '%Y/%m/%d %H:%M')
            set_alarm = False 
       else: 
-           dtstart = datetime.strptime(row[1]+' '+row[2], '%Y/%m/%d %H:%M')
+           dtstart = datetime.strptime(row[1]+' '+time_val, '%Y/%m/%d %H:%M')
            set_alarm = True 
+      
       dtend = dtstart + timedelta(minutes=495) 
-      if len(row[2]) == 5:
-          if row[2] =="07:30":
+      
+      # 👉 修正點 2：移除嚴格的長度 5 限制，直接比對清理後的 time_val
+      if time_val:
+          if time_val == "07:30":
             summary = "早" 
-          if row[2] =="15:10":
+          elif time_val == "15:10":
             summary = "中"
-          if row[2] == "23:20":
+          elif time_val == "23:20":
             summary = "夜"
-          if summary == '':
-            summary = row[2]    
-      description = row[5].strip()
-      location = row[4].strip()
+          else:
+            summary = time_val    # 如果都不是，則用時間作為標題
+            
+      description = row[5].strip() if len(row) > 5 else ''
+      location = row[4].strip() if len(row) > 4 else ''
      
       event = Event()
       event.add('summary', summary)
@@ -78,20 +74,18 @@ def csv2ical(input_file, output_file):
       event.add('description', description)
       event.add('location', location)
       event['uid'] = str(randint(1,10**30)) + datetime.now().strftime('%Y%m%dT%H%M%S') + '___n8henrie.com'
+      
       if set_alarm == True :
          alarm=Alarm()
          alarm.add('ACTION','DISPLAY')         
          alarm.add('DESCRIPTION','Reminder')
-         #'返工啦')
-         # The only way to convince Outlook to do it correctly
          alarm.add("trigger", timedelta(hours=-reminderHours))
-         #alarm.add("TRIGGER;RELATED=START", "-PT{0}H".format(reminderHours))
          alarm.add('REPEAT','3')
          alarm.add('DURATION',duration)
          event.add_component(alarm)
-         #event['uid'] = str(randint(1,10**30)) + datetime.now().strftime('%Y%m%dT%H%M%S') + '___n8henrie.com'
 
       cal.add_component(event)
+      
     with open(output_file, 'wb') as out_f:
       out_f.write(cal.to_ical())
       out_f.close()
