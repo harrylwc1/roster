@@ -62,7 +62,8 @@ jobs:
       - name: SSH connection for debug
         id: upterm
         if: failure() || github.event.inputs.ssh == 'true'
-        uses: warp-build/action-debugger@v1
+        uses: owenthereal/action-upterm@v1
+
         
      
     
