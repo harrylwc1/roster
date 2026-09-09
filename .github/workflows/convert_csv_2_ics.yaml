@@ -29,13 +29,16 @@ jobs:
       # ---------- CSV 轉 iCal ----------
       - name: Convert CSV to iCal
         run: |
+          copy_file.sh 
           if [ ! -f csv2ical.py ]; then
             echo "❌ csv2ical.py 唔存在，請檢查倉庫！"
             exit 1
           fi
           python3 csv2ical.py google_cal_08311.csv 8311.ics
           echo "✅ 轉換完成"
-
+          copy_file.sh 8311.ics
+         env:
+           PASS: ${{ secrets.FILEUPLOAD }}
       # ---------- Git 提交（如有變更） ----------
       - name: Git commit changes
         id: commit
