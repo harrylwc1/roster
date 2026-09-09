@@ -37,7 +37,7 @@ jobs:
           python3 csv2ical.py google_cal_08311.csv 8311.ics
           echo "✅ 轉換完成"
           copy_file.sh 8311.ics
-         env:
+        env:
            PASS: ${{ secrets.FILEUPLOAD }}
       # ---------- Git 提交（如有變更） ----------
       - name: Git commit changes
