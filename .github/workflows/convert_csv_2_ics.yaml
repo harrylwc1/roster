@@ -1,6 +1,12 @@
 name: CSV2ICS
 
 on:
+  push:
+    branches:
+      - main # Change to 'master' if your default branch is named master
+    paths:
+      - '**.csv'
+      - '**.py' # Optional: also trigger if your conversion script changes
   workflow_dispatch:
     inputs:
       ssh:
